@@ -24,4 +24,144 @@ model Transaction {
   amount      Float
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  // NEW: relations and extended fields
+  account         Account?       @relation(fields: [accountId], references: [id])
+  accountId       Int?
+  categoryRef     Category?      @relation(fields: [categoryId], references: [id])
+  categoryId      Int?
+  user            User?          @relation(fields: [userId], references: [id])
+  userId          Int?
+  recurringRule   RecurringRule? @relation(fields: [recurringRuleId], references: [id])
+  recurringRuleId Int?
+  tags            TransactionTag[]
+
+  // NEW: soft delete flag
+  isDeleted   Boolean        @default(false)
+
+  // NEW: useful indexes for queries
+  @@index([date])
+  @@index([type])
+}
+
+// NEW: account type enum
+enum AccountType {
+  cash
+  bank
+  wallet
+  credit
+}
+
+// NEW: recurring frequency enum
+enum Frequency {
+  daily
+  weekly
+  monthly
+  yearly
+}
+
+// NEW: User model (optional ownership of data)
+model User {
+  id            Int           @id @default(autoincrement())
+  name          String?
+  email         String        @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  accounts      Account[]
+  budgets       Budget[]
+  transactions  Transaction[]
+}
+
+// NEW: Financial accounts
+model Account {
+  id             Int           @id @default(autoincrement())
+  name           String
+  type           AccountType
+  currency       String        @default("INR")
+  initialBalance Float         @default(0)
+  user           User          @relation(fields: [userId], references: [id])
+  userId         Int
+  transactions   Transaction[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+// NEW: Categories (normalized), linked to income/expense
+model Category {
+  id               Int              @id @default(autoincrement())
+  name             String
+  type             TransactionType
+  color            String?
+  user             User?            @relation(fields: [userId], references: [id])
+  userId           Int?
+  transactions     Transaction[]
+  budgetCategories BudgetCategory[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([name, userId, type])
+}
+
+// NEW: Tags (many-to-many with transactions)
+model Tag {
+  id           Int             @id @default(autoincrement())
+  name         String
+  user         User?           @relation(fields: [userId], references: [id])
+  userId       Int?
+  transactions TransactionTag[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([name, userId])
+}
+
+// NEW: Join table for Transaction-Tag many-to-many
+model TransactionTag {
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+  transactionId Int
+  tag           Tag         @relation(fields: [tagId], references: [id])
+  tagId         Int
+
+  @@id([transactionId, tagId])
+}
+
+// NEW: Recurring rules for auto-scheduled transactions
+model RecurringRule {
+  id           Int        @id @default(autoincrement())
+  frequency    Frequency
+  interval     Int        @default(1)
+  dayOfMonth   Int?
+  dayOfWeek    Int?
+  startDate    DateTime
+  endDate      DateTime?
+  transactions Transaction[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// NEW: Monthly budgets scoped to a user and categories
+model Budget {
+  id         Int              @id @default(autoincrement())
+  name       String
+  year       Int
+  month      Int              // 1-12
+  limit      Float
+  user       User             @relation(fields: [userId], references: [id])
+  userId     Int
+  categories BudgetCategory[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([userId, year, month, name])
+}
+
+// NEW: Join table linking budgets to categories
+model BudgetCategory {
+  budget     Budget   @relation(fields: [budgetId], references: [id])
+  budgetId   Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  @@id([budgetId, categoryId])
 }
